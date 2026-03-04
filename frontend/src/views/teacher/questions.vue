@@ -511,12 +511,47 @@ const handleImportSubmit = async () => {
   
   importLoading.value = true
   try {
-    await importQuestions(importBankId.value, importFile.value)
-    ElMessage.success('导入成功')
+    const res = await importQuestions(importBankId.value, importFile.value)
+    console.log('导入返回:', res)
+    
+    // 强行从各种可能的位置获取数据
+    let successCount = 0
+    let failCount = 0
+    
+    // 情况1：直接是 {success: 3, fail: 0}
+    if (res && typeof res === 'object') {
+      if (res.success !== undefined) {
+        successCount = res.success
+        failCount = res.fail
+      }
+      // 情况2：是 {data: {success: 3, fail: 0}}
+      else if (res.data && res.data.success !== undefined) {
+        successCount = res.data.success
+        failCount = res.data.fail
+      }
+      // 情况3：是完整的 Result {code:200, data:{success:3, fail:0}}
+      else if (res.code === 200 && res.data && res.data.success !== undefined) {
+        successCount = res.data.success
+        failCount = res.data.fail
+      }
+    }
+    
+    // 如果成功条数大于0，说明导入成功
+    if (successCount > 0) {
+      ElMessage.success(`导入完成：成功${successCount}条，失败${failCount}条`)
+    } else {
+      ElMessage.success('导入成功')
+    }
+    
     importDialogVisible.value = false
     loadData()
+    importFile.value = null
+    if (uploadRef.value) {
+      uploadRef.value.clearFiles()
+    }
   } catch (error) {
-    console.error(error)
+    console.error('导入失败:', error)
+    ElMessage.error('导入失败')
   } finally {
     importLoading.value = false
   }
@@ -524,7 +559,17 @@ const handleImportSubmit = async () => {
 
 const handleDownloadTemplate = async () => {
   try {
-    const blob = await downloadTemplate()
+    const response = await downloadTemplate()
+    console.log('下载响应:', response)  // 加个日志看看返回的是什么
+    
+    // 判断返回的是不是已经是 blob
+    let blob
+    if (response.data) {
+      blob = response.data
+    } else {
+      blob = response
+    }
+    
     const url = window.URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
@@ -532,10 +577,10 @@ const handleDownloadTemplate = async () => {
     link.click()
     window.URL.revokeObjectURL(url)
   } catch (error) {
-    console.error(error)
+    console.error('下载模板失败:', error)
+    ElMessage.error('下载模板失败')
   }
 }
-
 const handleSizeChange = (val) => {
   size.value = val
   loadData()

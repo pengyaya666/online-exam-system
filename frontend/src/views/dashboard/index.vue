@@ -185,6 +185,10 @@ const store = useStore()
 const router = useRouter()
 
 const userRole = computed(() => store.getters.userRole)
+const totalUsers = ref(0)
+const totalExams = ref(0)
+const teacherCount = ref(0)
+const studentCount = ref(0)
 const username = computed(() => store.getters.username)
 const realName = computed(() => store.getters.realName)
 
@@ -208,11 +212,15 @@ const welcomeMessage = computed(() => {
 })
 
 const statistics = computed(() => {
-  const baseStats = [
-    { title: '进行中的考试', value: pendingExams.value.length, icon: 'Calendar', color: '#409eff' },
-    { title: '已完成考试', value: recentScores.value.length, icon: 'DocumentChecked', color: '#67c23a' }
-  ]
+  // 学生端
+  if (userRole.value === 2) {
+    return [
+      { title: '进行中的考试', value: pendingExams.value.length, icon: 'Calendar', color: '#409eff' },
+      { title: '已完成考试', value: recentScores.value.length, icon: 'DocumentChecked', color: '#67c23a' }
+    ]
+  }
   
+  // 教师端
   if (userRole.value === 1) {
     return [
       { title: '我的题库', value: myBanks.value.length, icon: 'Collection', color: '#409eff' },
@@ -222,7 +230,18 @@ const statistics = computed(() => {
     ]
   }
   
-  return baseStats
+  // 管理员端
+  if (userRole.value === 0) {
+    // 这些值需要在 loadAdminData 里计算并存储
+    return [
+      { title: '总用户数', value: totalUsers.value || 0, icon: 'User', color: '#409eff' },
+      { title: '考试总数', value: totalExams.value || 0, icon: 'Calendar', color: '#67c23a' },
+      { title: '教师数量', value: teacherCount.value || 0, icon: 'UserFilled', color: '#e6a23c' },
+      { title: '学生数量', value: studentCount.value || 0, icon: 'User', color: '#f56c6c' }
+    ]
+  }
+  
+  return []
 })
 
 const updateTime = () => {
@@ -271,26 +290,45 @@ const loadTeacherData = async () => {
 
 const loadAdminData = async () => {
   try {
-    // 加载用户统计
-    const users = await getUserPage({ page: 1, size: 1 })
+    // 加载用户统计 - 获取所有用户
+    const userRes = await getUserPage({ page: 1, size: 1000 })
+    const allUsers = userRes.records || []
+    
+    // 统计各角色数量
+    const adminCountNum = allUsers.filter(u => u.role === 0).length
+    const teacherCountNum = allUsers.filter(u => u.role === 1).length
+    const studentCountNum = allUsers.filter(u => u.role === 2).length
+    
     const userStats = [
-      { value: 0, name: '管理员' },
-      { value: 0, name: '教师' },
-      { value: 0, name: '学生' }
+      { value: adminCountNum, name: '管理员' },
+      { value: teacherCountNum, name: '教师' },
+      { value: studentCountNum, name: '学生' }
     ]
     
-    // 加载考试统计
-    const exams = await getExamPage({ page: 1, size: 1 })
+    // 加载考试统计 - 获取所有考试
+    const examRes = await getExamPage({ page: 1, size: 1000 })
+    const allExams = examRes.records || []
+    
+    // 统计各状态考试数量
+    const draftCount = allExams.filter(e => e.status === 0).length
+    const publishedCount = allExams.filter(e => e.status === 1).length
+    const endedCount = allExams.filter(e => e.status === 2).length
     
     // 初始化图表
     initUserChart(userStats)
     initExamChart([
-      { value: exams.records.filter(e => e.status === 0).length, name: '草稿' },
-      { value: exams.records.filter(e => e.status === 1).length, name: '已发布' },
-      { value: exams.records.filter(e => e.status === 2).length, name: '已结束' }
+      { value: draftCount, name: '草稿' },
+      { value: publishedCount, name: '已发布' },
+      { value: endedCount, name: '已结束' }
     ])
+    
+    // 更新统计卡片的值
+    totalUsers.value = allUsers.length
+    totalExams.value = allExams.length
+    teacherCount.value = teacherCountNum
+    studentCount.value = studentCountNum
   } catch (error) {
-    console.error(error)
+    console.error('加载统计数据失败:', error)
   }
 }
 

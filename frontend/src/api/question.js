@@ -58,6 +58,12 @@ export const importQuestions = (bankId, file) => {
     headers: {
       'Content-Type': 'multipart/form-data'
     }
+  }).then(res => {
+    // 如果 res 有 data 属性，说明是被包装过的
+    if (res && res.data && (res.data.success !== undefined || res.data.fail !== undefined)) {
+      return res.data
+    }
+    return res
   })
 }
 

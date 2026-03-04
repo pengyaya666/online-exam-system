@@ -69,3 +69,22 @@ export const changePassword = (oldPassword, newPassword) => {
     params: { oldPassword, newPassword }
   })
 }
+
+export const importUsers = (formData) => {
+  return request({
+    url: '/user/import',
+    method: 'post',
+    data: formData,
+    headers: {
+      'Content-Type': 'multipart/form-data'
+    }
+  })
+}
+
+export const downloadTemplate = () => {
+  return request({
+    url: '/user/template',
+    method: 'get',
+    responseType: 'blob'
+  })
+}

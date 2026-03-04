@@ -27,150 +27,164 @@ import java.io.IOException;
 import java.net.URLEncoder;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
 public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> implements QuestionService {
-    
+
     @Autowired
     private QuestionBankMapper bankMapper;
-    
+
     @Autowired
     private UserMapper userMapper;
-    
+
     @Override
     public void addQuestion(QuestionDTO questionDTO, Long userId) {
         QuestionBank bank = bankMapper.selectById(questionDTO.getBankId());
         if (bank == null) {
             throw new RuntimeException("题库不存在");
         }
-        
+
         Question question = new Question();
         BeanUtils.copyProperties(questionDTO, question);
         question.setCreateBy(userId);
-        
+
         baseMapper.insert(question);
     }
-    
+
     @Override
     public void updateQuestion(QuestionDTO questionDTO) {
         Question existQuestion = baseMapper.selectById(questionDTO.getId());
         if (existQuestion == null) {
             throw new RuntimeException("题目不存在");
         }
-        
+
         BeanUtils.copyProperties(questionDTO, existQuestion);
         baseMapper.updateById(existQuestion);
     }
-    
+
     @Override
     public void deleteQuestion(Long id) {
         baseMapper.deleteById(id);
     }
-    
+
     @Override
     public QuestionVO getQuestionDetail(Long id) {
         Question question = baseMapper.selectById(id);
         if (question == null) {
             throw new RuntimeException("题目不存在");
         }
-        
+
         return convertToVO(question);
     }
-    
+
     @Override
     public PageResult<QuestionVO> getQuestionPage(Integer page, Integer size, Long bankId, Integer type, String keyword) {
         LambdaQueryWrapper<Question> wrapper = new LambdaQueryWrapper<>();
-        
+
         if (bankId != null) {
             wrapper.eq(Question::getBankId, bankId);
         }
-        
+
         if (type != null) {
             wrapper.eq(Question::getType, type);
         }
-        
+
         if (StringUtils.hasText(keyword)) {
             wrapper.like(Question::getContent, keyword);
         }
-        
+
         wrapper.orderByDesc(Question::getCreateTime);
-        
+
         Page<Question> pageResult = baseMapper.selectPage(new Page<>(page, size), wrapper);
-        
+
         List<QuestionVO> records = pageResult.getRecords().stream()
                 .map(this::convertToVO)
                 .collect(Collectors.toList());
-        
+
         return new PageResult<>(pageResult.getTotal(), records, pageResult.getCurrent(), pageResult.getSize());
     }
-    
+
     @Override
-    public void batchImport(Long bankId, MultipartFile file, Long userId) throws IOException {
+    public Map<String, Integer> batchImport(Long bankId, MultipartFile file, Long userId) throws IOException {
+        Map<String, Integer> result = new HashMap<>();
+        List<Question> questions = new ArrayList<>();
+        int[] successCount = {0};
+        int[] failCount = {0};
+
         QuestionBank bank = bankMapper.selectById(bankId);
         if (bank == null) {
             throw new RuntimeException("题库不存在");
         }
-        
-        List<Question> questions = new ArrayList<>();
-        
-        EasyExcel.read(file.getInputStream(), new ReadListener<List<String>>() {
-            private boolean isFirstRow = true;
-            
-            @Override
-            public void invoke(List<String> row, AnalysisContext context) {
-                if (isFirstRow) {
-                    isFirstRow = false;
-                    return;
-                }
-                
-                if (row.size() < 6) {
-                    return;
-                }
-                
-                try {
-                    Question question = new Question();
-                    question.setBankId(bankId);
-                    question.setType(Integer.parseInt(row.get(0)));
-                    question.setContent(row.get(1));
-                    question.setOptions(row.get(2));
-                    question.setAnswer(row.get(3));
-                    question.setScore(Integer.parseInt(row.get(4)));
-                    question.setDifficulty(Integer.parseInt(row.get(5)));
-                    if (row.size() > 6) {
-                        question.setAnalysis(row.get(6));
-                    }
-                    if (row.size() > 7) {
-                        question.setKnowledgePoint(row.get(7));
-                    }
-                    question.setCreateBy(userId);
-                    
-                    questions.add(question);
-                } catch (Exception e) {
-                    System.err.println("解析行失败: " + row);
-                }
-            }
-            
-            @Override
-            public void doAfterAllAnalysed(AnalysisContext context) {
-            }
-        }).sheet().doRead();
-        
-        if (!questions.isEmpty()) {
-            for (Question question : questions) {
-                baseMapper.insert(question);
-            }
+
+        try {
+            EasyExcel.read(file.getInputStream())
+                    .sheet()
+                    .headRowNumber(1) // 第一行是表头
+                    .registerReadListener(new ReadListener<Map<Integer, String>>() {
+                        @Override
+                        public void invoke(Map<Integer, String> data, AnalysisContext context) {
+                            try {
+                                // 打印读取到的数据，用于调试
+                                System.out.println("读取到行数据: " + data);
+
+                                Question question = new Question();
+                                question.setBankId(bankId);
+
+                                // 按列索引读取，确保和模板列顺序一致
+                                question.setType(Integer.parseInt(data.get(0))); // 题目类型
+                                question.setContent(data.get(1)); // 题目内容
+                                question.setOptions(data.get(2)); // 选项
+                                question.setAnswer(data.get(3)); // 答案
+                                question.setScore(Integer.parseInt(data.get(4))); // 分值
+                                question.setDifficulty(Integer.parseInt(data.get(5))); // 难度
+
+                                if (data.containsKey(6) && data.get(6) != null) {
+                                    question.setAnalysis(data.get(6)); // 解析
+                                }
+                                if (data.containsKey(7) && data.get(7) != null) {
+                                    question.setKnowledgePoint(data.get(7)); // 知识点
+                                }
+
+                                question.setCreateBy(userId);
+
+                                // 直接插入数据库
+                                baseMapper.insert(question);
+                                successCount[0]++;
+
+                            } catch (Exception e) {
+                                System.err.println("导入失败行: " + data + ", 错误: " + e.getMessage());
+                                failCount[0]++;
+                            }
+                        }
+
+                        @Override
+                        public void doAfterAllAnalysed(AnalysisContext context) {
+                            System.out.println("解析完成，成功：" + successCount[0] + "，失败：" + failCount[0]);
+                        }
+                    })
+                    .doRead();
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            throw new RuntimeException("Excel解析失败: " + e.getMessage());
         }
+
+        result.put("success", successCount[0]);
+        result.put("fail", failCount[0]);
+        return result;
     }
-    
+
     @Override
     public void exportTemplate(HttpServletResponse response) throws IOException {
         response.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
         response.setCharacterEncoding("utf-8");
         String fileName = URLEncoder.encode("题目导入模板", "UTF-8").replaceAll("\\+", "%20");
         response.setHeader("Content-disposition", "attachment;filename*=utf-8''" + fileName + ".xlsx");
-        
+
         List<List<String>> head = Arrays.asList(
                 Arrays.asList("题目类型(1单选2多选3判断4填空)"),
                 Arrays.asList("题目内容"),
@@ -181,48 +195,48 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
                 Arrays.asList("解析"),
                 Arrays.asList("知识点")
         );
-        
+
         List<List<String>> data = new ArrayList<>();
         data.add(Arrays.asList("1", "示例单选题", "{\"A\":\"选项A\",\"B\":\"选项B\",\"C\":\"选项C\",\"D\":\"选项D\"}", "A", "5", "1", "这是解析", "知识点1"));
         data.add(Arrays.asList("2", "示例多选题", "{\"A\":\"选项A\",\"B\":\"选项B\",\"C\":\"选项C\",\"D\":\"选项D\"}", "AB", "10", "2", "这是解析", "知识点2"));
         data.add(Arrays.asList("3", "示例判断题", "", "true", "5", "1", "这是解析", "知识点3"));
-        
+
         EasyExcel.write(response.getOutputStream())
                 .head(head)
                 .sheet("模板")
                 .doWrite(data);
     }
-    
+
     @Override
     public List<QuestionVO> getQuestionsByBankId(Long bankId) {
         LambdaQueryWrapper<Question> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(Question::getBankId, bankId);
         wrapper.orderByDesc(Question::getCreateTime);
-        
+
         return baseMapper.selectList(wrapper).stream()
                 .map(this::convertToVO)
                 .collect(Collectors.toList());
     }
-    
+
     @Override
     public List<Question> selectRandomQuestions(Long bankId, Integer type, Integer count) {
         return baseMapper.selectRandomByBankIdAndType(bankId, type, count);
     }
-    
+
     private QuestionVO convertToVO(Question question) {
         QuestionVO vo = new QuestionVO();
         BeanUtils.copyProperties(question, vo);
-        
+
         QuestionBank bank = bankMapper.selectById(question.getBankId());
         if (bank != null) {
             vo.setBankName(bank.getName());
         }
-        
+
         User user = userMapper.selectById(question.getCreateBy());
         if (user != null) {
             vo.setCreateByName(user.getRealName());
         }
-        
+
         switch (question.getType()) {
             case 1:
                 vo.setTypeName("单选题");
@@ -239,7 +253,7 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
             default:
                 vo.setTypeName("未知");
         }
-        
+
         switch (question.getDifficulty()) {
             case 1:
                 vo.setDifficultyName("简单");
@@ -253,14 +267,14 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
             default:
                 vo.setDifficultyName("未知");
         }
-        
+
         if (StringUtils.hasText(question.getOptions())) {
             vo.setOptionList(parseOptions(question.getOptions()));
         }
-        
+
         return vo;
     }
-    
+
     private List<String> parseOptions(String optionsJson) {
         List<String> options = new ArrayList<>();
         try {

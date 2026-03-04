@@ -33,12 +33,14 @@
     </div>
     
     <!-- 操作栏 -->
-    <div class="toolbar">
-      <el-button type="primary" @click="handleAdd">
-        <el-icon><Plus /></el-icon>新增用户
-      </el-button>
-    </div>
-    
+<div class="toolbar">
+  <el-button type="primary" @click="handleAdd">
+    <el-icon><Plus /></el-icon>新增用户
+  </el-button>
+  <el-button type="success" @click="handleImport">
+    <el-icon><Upload /></el-icon>批量导入
+  </el-button>
+</div>
     <!-- 数据表格 -->
     <el-card shadow="hover">
       <el-table :data="tableData" v-loading="loading" style="width: 100%">
@@ -87,6 +89,40 @@
       </div>
     </el-card>
     
+        <!-- 导入对话框 -->
+    <el-dialog v-model="importDialogVisible" title="批量导入用户" width="500px">
+      <div class="import-tip" style="margin-bottom: 20px; padding: 15px; background-color: #f5f7fa; border-radius: 4px;">
+        <p style="margin: 5px 0;">1. 请下载模板并按格式填写</p>
+        <p style="margin: 5px 0;">2. 支持 .xlsx, .xls 格式</p>
+        <p style="margin: 5px 0;">3. 用户名不能重复，重复的会导入失败</p>
+        <el-button type="primary" link @click="handleDownloadTemplate">
+          <el-icon><Download /></el-icon>下载模板
+        </el-button>
+      </div>
+      
+      <el-upload
+        ref="uploadRef"
+        action="#"
+        :auto-upload="false"
+        :on-change="handleFileChange"
+        :limit="1"
+        accept=".xlsx,.xls"
+        drag
+      >
+        <el-icon class="el-icon--upload"><upload-filled /></el-icon>
+        <div class="el-upload__text">
+          将文件拖到此处，或<em>点击上传</em>
+        </div>
+      </el-upload>
+      
+      <template #footer>
+        <el-button @click="importDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="submitImport" :loading="importLoading">
+          开始导入
+        </el-button>
+      </template>
+    </el-dialog>
+
     <!-- 新增/编辑对话框 -->
     <el-dialog
       v-model="dialogVisible"
@@ -169,10 +205,17 @@
 </template>
 
 <script setup>
+import { downloadTemplate } from '@/api/user'
+import { importUsers } from '@/api/user'
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getUserPage, addUser, updateUser, deleteUser, resetPassword, changeStatus } from '@/api/user'
 
+// 导入相关
+const importDialogVisible = ref(false)
+const importLoading = ref(false)
+const importFile = ref(null)
+const uploadRef = ref(null)
 const loading = ref(false)
 const submitLoading = ref(false)
 const passwordLoading = ref(false)
@@ -393,6 +436,62 @@ const handleCurrentChange = (val) => {
 onMounted(() => {
   loadData()
 })
+
+const handleImport = () => {
+  importDialogVisible.value = true
+}
+
+const handleFileChange = (file) => {
+  importFile.value = file.raw
+}
+
+const submitImport = async () => {
+  if (!importFile.value) {
+    ElMessage.warning('请选择文件')
+    return
+  }
+  
+  importLoading.value = true
+  try {
+    const formData = new FormData()
+    formData.append('file', importFile.value)
+    
+    const res = await importUsers(formData)
+    
+    ElMessage.success(`导入完成：成功${res.success}条，失败${res.fail}条`)
+    importDialogVisible.value = false
+    loadData()
+    importFile.value = null
+    if (uploadRef.value) {
+      uploadRef.value.clearFiles()
+    }
+  } catch (error) {
+    console.error(error)
+  } finally {
+    importLoading.value = false
+  }
+}
+
+const handleDownloadTemplate = async () => {
+  try {
+    const response = await downloadTemplate()
+    console.log('response类型:', typeof response)
+    console.log('response内容:', response)
+    console.log('response.data类型:', typeof response.data)
+    console.log('response.data内容:', response.data)
+    
+    const blob = response.data
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = '用户导入模板.xlsx'
+    link.click()
+    window.URL.revokeObjectURL(url)
+  } catch (error) {
+    console.error('下载模板失败:', error)
+    ElMessage.error('下载模板失败')
+  }
+}
 </script>
 
 <style scoped>

@@ -14,6 +14,7 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/question")
@@ -64,16 +65,16 @@ public class QuestionController {
         questionService.deleteQuestion(id);
         return Result.success("删除成功");
     }
-    
+
     @PostMapping("/import")
-    public Result<Void> batchImport(
+    public Result<Map<String, Integer>> batchImport(
             @RequestParam Long bankId,
             @RequestParam MultipartFile file,
             HttpServletRequest request) throws IOException {
-        
+
         Long userId = (Long) request.getAttribute("userId");
-        questionService.batchImport(bankId, file, userId);
-        return Result.success("导入成功");
+        Map<String, Integer> result = questionService.batchImport(bankId, file, userId);
+        return Result.success(result);
     }
     
     @GetMapping("/template")

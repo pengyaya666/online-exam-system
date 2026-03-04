@@ -4,7 +4,14 @@ export default createStore({
   state: {
     token: localStorage.getItem('token') || '',
     refreshToken: localStorage.getItem('refreshToken') || '',
-    userInfo: JSON.parse(localStorage.getItem('userInfo') || 'null')
+    userInfo: (() => {
+      try {
+        const item = localStorage.getItem('userInfo')
+        return item ? JSON.parse(item) : null
+      } catch {
+        return null
+      }
+    })()
   },
   getters: {
     isLoggedIn: state => !!state.token,

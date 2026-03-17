@@ -152,9 +152,6 @@ const currentQuestionIndex = ref(0)
 const switchCount = ref(0)
 const switchDialogVisible = ref(false)
 
-// 多选题答案用数组存储
-const multipleAnswers = ref({})
-
 const answeredCount = computed(() => {
   return questions.value.filter(q => isAnswered(q.id)).length
 })
@@ -192,14 +189,26 @@ const scrollToQuestion = (index) => {
 }
 
 const startTimer = () => {
+  if (timer.value) {
+    clearInterval(timer.value)
+  }
+  
   timer.value = setInterval(() => {
     if (remainingTime.value > 0) {
       remainingTime.value--
+      
+      // 每秒保存状态
+      localStorage.setItem(`exam_${examId}_remainingTime`, remainingTime.value)
+      localStorage.setItem(`exam_${examId}_answers`, JSON.stringify(answers.value))
+      
       if (remainingTime.value === 300) {
         ElMessage.warning('考试还剩5分钟，请抓紧时间！')
       }
     } else {
       clearInterval(timer.value)
+      localStorage.removeItem(`exam_${examId}_recordId`)
+      localStorage.removeItem(`exam_${examId}_remainingTime`)
+      localStorage.removeItem(`exam_${examId}_answers`)
       ElMessage.warning('考试时间已到，系统将自动交卷')
       submitExam()
     }
@@ -232,7 +241,6 @@ const submitExam = async () => {
     }
   }
   
-  // 处理答案格式
   const formattedAnswers = questions.value.map(q => {
     let answer = answers.value[q.id]
     if (Array.isArray(answer)) {
@@ -247,8 +255,13 @@ const submitExam = async () => {
   try {
     await apiSubmitExam({
       recordId: recordId.value,
-      answers: formattedAnswers
+      answers: formattedAnswers,
+      switchCount: switchCount.value
     })
+    
+    localStorage.removeItem(`exam_${examId}_recordId`)
+    localStorage.removeItem(`exam_${examId}_remainingTime`)
+    localStorage.removeItem(`exam_${examId}_answers`)
     
     ElMessage.success('交卷成功')
     router.push(`/student/result/${recordId.value}`)
@@ -263,11 +276,7 @@ const loadExam = async () => {
     console.log('考试ID:', examId)
     
     const res = await getExamById(examId)
-    console.log('接口返回的原始数据:', res)
-    
     examInfo.value = res
-    console.log('questions数据:', res.questions)
-    
     questions.value = res.questions || []
     
     // 初始化答案对象
@@ -279,10 +288,43 @@ const loadExam = async () => {
       }
     })
     
-    // 开始考试
-    const startRes = await startExam(examId)
-    recordId.value = startRes.id
-    remainingTime.value = examInfo.value.duration * 60
+    // 检查 localStorage
+    const savedRecordId = localStorage.getItem(`exam_${examId}_recordId`)
+    const savedTime = localStorage.getItem(`exam_${examId}_remainingTime`)
+    const savedAnswers = localStorage.getItem(`exam_${examId}_answers`)
+    
+    console.log('localStorage内容:', {
+      savedRecordId,
+      savedTime,
+      savedAnswers: savedAnswers ? '存在' : '不存在'
+    })
+    
+    if (savedRecordId && savedTime) {
+      console.log('找到保存的状态，恢复中...')
+      recordId.value = parseInt(savedRecordId)
+      remainingTime.value = parseInt(savedTime)
+      
+      if (savedAnswers) {
+        try {
+          const parsed = JSON.parse(savedAnswers)
+          Object.assign(answers.value, parsed)
+          console.log('答案恢复成功')
+        } catch (e) {
+          console.error('答案解析失败:', e)
+        }
+      }
+    } else {
+      console.log('没有保存的状态，开始新考试')
+      const startRes = await startExam(examId)
+      recordId.value = startRes.id
+      remainingTime.value = examInfo.value.duration * 60
+      
+      localStorage.setItem(`exam_${examId}_recordId`, recordId.value)
+      localStorage.setItem(`exam_${examId}_remainingTime`, remainingTime.value)
+      localStorage.setItem(`exam_${examId}_answers`, JSON.stringify(answers.value))
+      
+      console.log('新考试状态已保存')
+    }
     
     startTimer()
   } catch (error) {
@@ -296,10 +338,7 @@ onMounted(() => {
   loadExam()
   document.addEventListener('visibilitychange', handleVisibilityChange)
   
-  // 监听滚动更新当前题目
   window.addEventListener('scroll', () => {
-    const scrollPosition = window.scrollY + window.innerHeight / 2
-    
     for (let i = 0; i < questions.value.length; i++) {
       const element = document.getElementById(`question-${i}`)
       if (element) {

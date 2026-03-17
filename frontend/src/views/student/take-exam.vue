@@ -259,8 +259,15 @@ const submitExam = async () => {
 
 const loadExam = async () => {
   try {
+    console.log('=== 开始加载考试 ===')
+    console.log('考试ID:', examId)
+    
     const res = await getExamById(examId)
+    console.log('接口返回的原始数据:', res)
+    
     examInfo.value = res
+    console.log('questions数据:', res.questions)
+    
     questions.value = res.questions || []
     
     // 初始化答案对象
@@ -279,7 +286,8 @@ const loadExam = async () => {
     
     startTimer()
   } catch (error) {
-    console.error(error)
+    console.error('加载考试失败:', error)
+    ElMessage.error('加载考试失败')
     router.push('/student/exams')
   }
 }

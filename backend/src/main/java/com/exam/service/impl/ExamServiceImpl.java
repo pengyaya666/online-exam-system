@@ -271,6 +271,12 @@ public class ExamServiceImpl extends ServiceImpl<ExamMapper, Exam> implements Ex
             answerRecordMapper.insert(answerRecord);
         }
 
+        // 更新切屏次数
+        if (submitDTO.getSwitchCount() != null) {
+            record.setSwitchCount(submitDTO.getSwitchCount());
+            System.out.println("保存切屏次数: " + submitDTO.getSwitchCount());
+        }
+
         record.setEndTime(LocalDateTime.now());
         record.setStatus(ExamRecord.STATUS_SUBMITTED);
         examRecordMapper.updateById(record);

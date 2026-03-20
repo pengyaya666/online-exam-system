@@ -31,7 +31,7 @@
       <el-col :span="6">
         <el-card shadow="hover" class="stat-item">
           <p class="stat-label">切屏次数</p>
-          <p class="stat-value" :class="{ warning: record.switchCount > 0 }">{{ record.switchCount }}</p>
+          <p class="stat-value" :class="{ warning: record.switchCount > 0 }">{{ record.switchCount || 0 }}</p>
         </el-card>
       </el-col>
     </el-row>
@@ -107,6 +107,7 @@ const router = useRouter()
 const recordId = route.params.recordId
 const record = ref({})
 const filterType = ref('all')
+const examId = ref(null)
 
 const resultClass = computed(() => {
   return record.value.isPass ? 'pass' : 'fail'
@@ -143,6 +144,15 @@ const loadResult = async () => {
   try {
     const res = await getExamResult(recordId)
     record.value = res
+    examId.value = res.examId
+    
+    // 从 sessionStorage 读取切屏次数
+    const savedSwitchCount = sessionStorage.getItem(`exam_${examId.value}_result_switchCount`)
+    if (savedSwitchCount) {
+      record.value.switchCount = parseInt(savedSwitchCount)
+      sessionStorage.removeItem(`exam_${examId.value}_result_switchCount`)
+    }
+    
   } catch (error) {
     console.error(error)
     router.push('/student/scores')

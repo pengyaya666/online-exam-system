@@ -151,6 +151,7 @@ const timer = ref(null)
 const currentQuestionIndex = ref(0)
 const switchCount = ref(0)
 const switchDialogVisible = ref(false)
+const isSubmitting = ref(false)
 
 const answeredCount = computed(() => {
   return questions.value.filter(q => isAnswered(q.id)).length
@@ -188,6 +189,79 @@ const scrollToQuestion = (index) => {
   }
 }
 
+// 强制交卷函数
+const forceSubmitExam = async (reason) => {
+  if (isSubmitting.value) return
+  isSubmitting.value = true
+  
+  if (timer.value) {
+    clearInterval(timer.value)
+  }
+  
+  ElMessage.warning(reason)
+  
+  if (recordId.value) {
+    const formattedAnswers = questions.value.map(q => {
+      let answer = answers.value[q.id]
+      if (Array.isArray(answer)) {
+        answer = answer.sort().join('')
+      }
+      return {
+        questionId: q.id,
+        answer: answer || ''
+      }
+    })
+    
+    try {
+      console.log('强制交卷，切屏次数:', switchCount.value)
+      
+      await apiSubmitExam({
+        recordId: recordId.value,
+        answers: formattedAnswers,
+        switchCount: switchCount.value
+      })
+      
+      sessionStorage.setItem(`exam_${examId}_result_switchCount`, switchCount.value)
+      
+      localStorage.removeItem(`exam_${examId}_recordId`)
+      localStorage.removeItem(`exam_${examId}_remainingTime`)
+      localStorage.removeItem(`exam_${examId}_answers`)
+      localStorage.removeItem(`exam_${examId}_switchCount`)
+      
+      ElMessage.success('自动交卷成功')
+      router.push(`/student/result/${recordId.value}`)
+    } catch (error) {
+      console.error('自动交卷失败:', error)
+      isSubmitting.value = false
+      router.push('/student/exams')
+    }
+  } else {
+    isSubmitting.value = false
+    router.push('/student/exams')
+  }
+}
+
+// 设置页面离开警告
+const setupBeforeUnload = () => {
+  window.addEventListener('beforeunload', (e) => {
+    if (isSubmitting.value) return
+    e.preventDefault()
+    e.returnValue = ''
+    forceSubmitExam('您退出了考试页面，系统将自动交卷')
+  })
+}
+
+// 监听历史变化（后退/前进）
+const setupHistoryGuard = () => {
+  window.history.pushState(null, null, window.location.href)
+  window.addEventListener('popstate', () => {
+    if (isSubmitting.value) return
+    window.history.pushState(null, null, window.location.href)
+    ElMessage.warning('考试期间不允许后退')
+    forceSubmitExam('您尝试后退页面，系统将自动交卷')
+  })
+}
+
 const startTimer = () => {
   if (timer.value) {
     clearInterval(timer.value)
@@ -197,7 +271,6 @@ const startTimer = () => {
     if (remainingTime.value > 0) {
       remainingTime.value--
       
-      // 每秒保存状态
       localStorage.setItem(`exam_${examId}_remainingTime`, remainingTime.value)
       localStorage.setItem(`exam_${examId}_answers`, JSON.stringify(answers.value))
       
@@ -209,6 +282,7 @@ const startTimer = () => {
       localStorage.removeItem(`exam_${examId}_recordId`)
       localStorage.removeItem(`exam_${examId}_remainingTime`)
       localStorage.removeItem(`exam_${examId}_answers`)
+      localStorage.removeItem(`exam_${examId}_switchCount`)
       ElMessage.warning('考试时间已到，系统将自动交卷')
       submitExam()
     }
@@ -216,13 +290,22 @@ const startTimer = () => {
 }
 
 const handleVisibilityChange = () => {
-  if (document.hidden) {
+  if (document.hidden && !isSubmitting.value) {
     switchCount.value++
     switchDialogVisible.value = true
+    
+    localStorage.setItem(`exam_${examId}_switchCount`, switchCount.value)
+    
+    if (switchCount.value >= 3) {
+      forceSubmitExam('切屏次数已达3次，系统将自动交卷')
+    }
   }
 }
 
 const submitExam = async () => {
+  if (isSubmitting.value) return
+  isSubmitting.value = true
+  
   const unansweredCount = questions.value.length - answeredCount.value
   
   if (unansweredCount > 0) {
@@ -237,6 +320,7 @@ const submitExam = async () => {
         }
       )
     } catch {
+      isSubmitting.value = false
       return
     }
   }
@@ -253,20 +337,29 @@ const submitExam = async () => {
   })
   
   try {
+    console.log('提交切屏次数:', switchCount.value)
+    
     await apiSubmitExam({
       recordId: recordId.value,
       answers: formattedAnswers,
       switchCount: switchCount.value
     })
     
+    window.removeEventListener('beforeunload', () => {})
+    window.removeEventListener('popstate', () => {})
+    
+    sessionStorage.setItem(`exam_${examId}_result_switchCount`, switchCount.value)
+    
     localStorage.removeItem(`exam_${examId}_recordId`)
     localStorage.removeItem(`exam_${examId}_remainingTime`)
     localStorage.removeItem(`exam_${examId}_answers`)
+    localStorage.removeItem(`exam_${examId}_switchCount`)
     
     ElMessage.success('交卷成功')
     router.push(`/student/result/${recordId.value}`)
   } catch (error) {
     console.error(error)
+    isSubmitting.value = false
   }
 }
 
@@ -279,7 +372,6 @@ const loadExam = async () => {
     examInfo.value = res
     questions.value = res.questions || []
     
-    // 初始化答案对象
     questions.value.forEach(q => {
       if (q.type === 2) {
         answers.value[q.id] = []
@@ -288,21 +380,26 @@ const loadExam = async () => {
       }
     })
     
-    // 检查 localStorage
     const savedRecordId = localStorage.getItem(`exam_${examId}_recordId`)
     const savedTime = localStorage.getItem(`exam_${examId}_remainingTime`)
     const savedAnswers = localStorage.getItem(`exam_${examId}_answers`)
+    const savedSwitchCount = localStorage.getItem(`exam_${examId}_switchCount`)
     
     console.log('localStorage内容:', {
       savedRecordId,
       savedTime,
-      savedAnswers: savedAnswers ? '存在' : '不存在'
+      savedAnswers: savedAnswers ? '存在' : '不存在',
+      savedSwitchCount
     })
     
     if (savedRecordId && savedTime) {
       console.log('找到保存的状态，恢复中...')
       recordId.value = parseInt(savedRecordId)
       remainingTime.value = parseInt(savedTime)
+      
+      if (savedSwitchCount) {
+        switchCount.value = parseInt(savedSwitchCount)
+      }
       
       if (savedAnswers) {
         try {
@@ -313,18 +410,28 @@ const loadExam = async () => {
           console.error('答案解析失败:', e)
         }
       }
+      
+      if (switchCount.value >= 3) {
+        forceSubmitExam('您之前已切屏3次，系统将自动交卷')
+        return
+      }
     } else {
       console.log('没有保存的状态，开始新考试')
       const startRes = await startExam(examId)
       recordId.value = startRes.id
       remainingTime.value = examInfo.value.duration * 60
+      switchCount.value = 0
       
       localStorage.setItem(`exam_${examId}_recordId`, recordId.value)
       localStorage.setItem(`exam_${examId}_remainingTime`, remainingTime.value)
       localStorage.setItem(`exam_${examId}_answers`, JSON.stringify(answers.value))
+      localStorage.setItem(`exam_${examId}_switchCount`, 0)
       
       console.log('新考试状态已保存')
     }
+    
+    setupBeforeUnload()
+    setupHistoryGuard()
     
     startTimer()
   } catch (error) {
@@ -357,6 +464,8 @@ onUnmounted(() => {
     clearInterval(timer.value)
   }
   document.removeEventListener('visibilitychange', handleVisibilityChange)
+  window.removeEventListener('beforeunload', () => {})
+  window.removeEventListener('popstate', () => {})
 })
 </script>
 

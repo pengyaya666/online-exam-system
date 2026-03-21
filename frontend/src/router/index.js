@@ -114,13 +114,12 @@ const routes = [
         component: () => import('../views/teacher/scores.vue'),
         meta: { title: '成绩统计', icon: 'DataLine', role: 0, hidden: true }
       },
-      // {
-      //   path: '/admin/config',
-      //   name: 'AdminConfig',
-      //   component: () => import('../views/admin/config.vue'),
-      //   meta: { title: '系统配置', icon: 'Setting', role: 0 }
-      // },
-      // 通用路由
+      {
+        path: '/admin/config',
+        name: 'AdminConfig',
+        component: () => import('../views/admin/config.vue'),
+        meta: { title: '系统配置', icon: 'Setting', role: 0 }
+      },
       {
         path: '/profile',
         name: 'Profile',

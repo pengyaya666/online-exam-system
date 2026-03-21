@@ -5,6 +5,10 @@ module.exports = defineConfig({
   lintOnSave: false,
   devServer: {
     port: 3000,
+    client: {
+      overlay: false,
+      progress: true
+    },
     proxy: {
       '/api': {
         target: 'http://localhost:8080',

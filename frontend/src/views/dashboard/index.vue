@@ -167,6 +167,19 @@
         </el-col>
       </el-row>
     </template>
+    
+    <!-- 系统公告弹窗 -->
+    <el-dialog
+      v-model="noticeDialogVisible"
+      :title="currentNotice?.title || '系统公告'"
+      width="500px"
+      :close-on-click-modal="false"
+    >
+      <div class="notice-content" v-html="currentNotice?.content"></div>
+      <template #footer>
+        <el-button type="primary" @click="noticeDialogVisible = false">知道了</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -179,6 +192,7 @@ import { getActiveExams, getExamRecords } from '@/api/exam'
 import { getExamPage } from '@/api/exam'
 import { getBankList } from '@/api/bank'
 import { getUserPage } from '@/api/user'
+import { getCurrentNotice } from '@/api/config'
 import * as echarts from 'echarts'
 
 const store = useStore()
@@ -203,6 +217,10 @@ const myBanks = ref([])
 
 const userChart = ref(null)
 const examChart = ref(null)
+
+// 公告相关变量
+const noticeDialogVisible = ref(false)
+const currentNotice = ref(null)
 
 const welcomeMessage = computed(() => {
   const hour = new Date().getHours()
@@ -232,7 +250,6 @@ const statistics = computed(() => {
   
   // 管理员端
   if (userRole.value === 0) {
-    // 这些值需要在 loadAdminData 里计算并存储
     return [
       { title: '总用户数', value: totalUsers.value || 0, icon: 'User', color: '#409eff' },
       { title: '考试总数', value: totalExams.value || 0, icon: 'Calendar', color: '#67c23a' },
@@ -332,6 +349,28 @@ const loadAdminData = async () => {
   }
 }
 
+// 加载当前公告
+const loadCurrentNotice = async () => {
+  try {
+    const res = await getCurrentNotice()
+    if (res && res.id) {
+      currentNotice.value = res
+      // 检查是否已经显示过该公告
+      const shownNotices = JSON.parse(localStorage.getItem('shown_notices') || '{}')
+      const today = new Date().toDateString()
+      const noticeKey = `notice_${res.id}_${today}`
+      
+      if (!shownNotices[noticeKey]) {
+        noticeDialogVisible.value = true
+        shownNotices[noticeKey] = true
+        localStorage.setItem('shown_notices', JSON.stringify(shownNotices))
+      }
+    }
+  } catch (error) {
+    console.error('获取公告失败:', error)
+  }
+}
+
 const initUserChart = (data) => {
   if (!userChart.value) return
   
@@ -378,6 +417,9 @@ onMounted(() => {
   } else if (userRole.value === 0) {
     loadAdminData()
   }
+  
+  // 加载公告（所有角色都需要）
+  loadCurrentNotice()
 })
 
 onUnmounted(() => {
@@ -492,5 +534,12 @@ onUnmounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.notice-content {
+  max-height: 400px;
+  overflow-y: auto;
+  line-height: 1.8;
+  white-space: pre-wrap;
 }
 </style>

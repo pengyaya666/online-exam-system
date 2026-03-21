@@ -123,7 +123,7 @@
       width="400px"
     >
       <p>您已切屏 {{ switchCount }} 次，请专注于考试！</p>
-      <p v-if="switchCount >= 3" style="color: #f56c6c;">多次切屏可能会被判定为作弊！</p>
+      <p v-if="switchCount >= maxSwitchCount" style="color: #f56c6c;">多次切屏可能会被判定为作弊！</p>
       <template #footer>
         <el-button type="primary" @click="switchDialogVisible = false">我知道了</el-button>
       </template>
@@ -136,6 +136,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getExamById, startExam, submitExam as apiSubmitExam } from '@/api/exam'
+import { getAllConfig } from '@/api/config'
 
 const route = useRoute()
 const router = useRouter()
@@ -152,6 +153,10 @@ const currentQuestionIndex = ref(0)
 const switchCount = ref(0)
 const switchDialogVisible = ref(false)
 const isSubmitting = ref(false)
+
+// 配置项
+const maxSwitchCount = ref(3)
+const reminderTime = ref(5)
 
 const answeredCount = computed(() => {
   return questions.value.filter(q => isAnswered(q.id)).length
@@ -186,6 +191,22 @@ const scrollToQuestion = (index) => {
   const element = document.getElementById(`question-${index}`)
   if (element) {
     element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }
+}
+
+// 加载考试配置
+const loadExamConfig = async () => {
+  try {
+    const config = await getAllConfig()
+    if (config.max_switch_count) {
+      maxSwitchCount.value = parseInt(config.max_switch_count)
+    }
+    if (config.exam_reminder_time) {
+      reminderTime.value = parseInt(config.exam_reminder_time)
+    }
+    console.log('考试配置加载完成:', { maxSwitchCount: maxSwitchCount.value, reminderTime: reminderTime.value })
+  } catch (error) {
+    console.error('加载考试配置失败:', error)
   }
 }
 
@@ -274,8 +295,9 @@ const startTimer = () => {
       localStorage.setItem(`exam_${examId}_remainingTime`, remainingTime.value)
       localStorage.setItem(`exam_${examId}_answers`, JSON.stringify(answers.value))
       
-      if (remainingTime.value === 300) {
-        ElMessage.warning('考试还剩5分钟，请抓紧时间！')
+      // 根据配置显示提醒
+      if (remainingTime.value === reminderTime.value * 60) {
+        ElMessage.warning(`考试还剩${reminderTime.value}分钟，请抓紧时间！`)
       }
     } else {
       clearInterval(timer.value)
@@ -296,8 +318,8 @@ const handleVisibilityChange = () => {
     
     localStorage.setItem(`exam_${examId}_switchCount`, switchCount.value)
     
-    if (switchCount.value >= 3) {
-      forceSubmitExam('切屏次数已达3次，系统将自动交卷')
+    if (switchCount.value >= maxSwitchCount.value) {
+      forceSubmitExam(`切屏次数已达${maxSwitchCount.value}次，系统将自动交卷`)
     }
   }
 }
@@ -365,6 +387,9 @@ const submitExam = async () => {
 
 const loadExam = async () => {
   try {
+    // 先加载配置
+    await loadExamConfig()
+    
     console.log('=== 开始加载考试 ===')
     console.log('考试ID:', examId)
     
@@ -411,8 +436,8 @@ const loadExam = async () => {
         }
       }
       
-      if (switchCount.value >= 3) {
-        forceSubmitExam('您之前已切屏3次，系统将自动交卷')
+      if (switchCount.value >= maxSwitchCount.value) {
+        forceSubmitExam(`您之前已切屏${maxSwitchCount.value}次，系统将自动交卷`)
         return
       }
     } else {

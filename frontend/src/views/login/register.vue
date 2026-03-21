@@ -99,7 +99,8 @@
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue'
+import { getAllConfig } from '@/api/config'
+import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { User, Lock, UserFilled, Message, Phone } from '@element-plus/icons-vue'
@@ -109,6 +110,7 @@ const router = useRouter()
 
 const registerForm = ref(null)
 const loading = ref(false)
+const passwordMinLength = ref(6)
 
 const form = reactive({
   username: '',
@@ -135,7 +137,7 @@ const rules = {
   ],
   password: [
     { required: true, message: '请输入密码', trigger: 'blur' },
-    { min: 6, max: 20, message: '密码长度在6-20位之间', trigger: 'blur' }
+    { min: passwordMinLength.value, message: `密码长度不能少于${passwordMinLength.value}位`, trigger: 'blur' }
   ],
   confirmPassword: [
     { required: true, message: '请再次输入密码', trigger: 'blur' },
@@ -153,6 +155,17 @@ const rules = {
   phone: [
     { pattern: /^1[3-9]\d{9}$/, message: '请输入正确的手机号', trigger: 'blur' }
   ]
+}
+
+const loadConfig = async () => {
+  try {
+    const config = await getAllConfig()
+    if (config.min_password_length) {
+      passwordMinLength.value = parseInt(config.min_password_length)
+    }
+  } catch (error) {
+    console.error('加载配置失败:', error)
+  }
 }
 
 const handleRegister = async () => {
@@ -174,6 +187,10 @@ const handleRegister = async () => {
 const goLogin = () => {
   router.push('/login')
 }
+
+onMounted(() => {
+  loadConfig()
+})
 </script>
 
 <style scoped>

@@ -252,11 +252,13 @@
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { useStore } from 'vuex'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getExamPage, createExam, updateExam, deleteExam, publishExam } from '@/api/exam'
 import { getBankList } from '@/api/bank'
 
 const router = useRouter()
+const store = useStore()
 
 const loading = ref(false)
 const submitLoading = ref(false)
@@ -493,7 +495,12 @@ const viewDetail = (row) => {
 }
 
 const viewScores = (row) => {
-  router.push(`/teacher/scores?examId=${row.id}`)
+  const userRole = store.getters.userRole
+  if (userRole === 0) {
+    router.push(`/admin/scores?examId=${row.id}`)
+  } else {
+    router.push(`/teacher/scores?examId=${row.id}`)
+  }
 }
 
 const handleSizeChange = (val) => {

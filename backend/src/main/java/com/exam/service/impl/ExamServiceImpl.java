@@ -569,7 +569,6 @@ public class ExamServiceImpl extends ServiceImpl<ExamMapper, Exam> implements Ex
                     if (question == null) return null;
 
                     QuestionVO qvo = new QuestionVO();
-                    // 只复制学生需要的基本信息
                     qvo.setId(question.getId());
                     qvo.setType(question.getType());
                     qvo.setTypeName(getTypeName(question.getType()));
@@ -578,7 +577,7 @@ public class ExamServiceImpl extends ServiceImpl<ExamMapper, Exam> implements Ex
                     qvo.setDifficulty(question.getDifficulty());
                     qvo.setDifficultyName(getDifficultyName(question.getDifficulty()));
                     qvo.setKnowledgePoint(question.getKnowledgePoint());
-
+                    qvo.setAnswer(question.getAnswer());
                     // 解析选项
                     if (org.springframework.util.StringUtils.hasText(question.getOptions())) {
                         qvo.setOptionList(parseOptions(question.getOptions()));

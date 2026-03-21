@@ -92,6 +92,8 @@ const formatAnswer = (answer) => {
 const loadExamDetail = async () => {
   try {
     const res = await getExamById(examId)
+    console.log('考试详情数据:', res)
+    console.log('第一道题的答案字段:', res.questions[0])
     examInfo.value = res
   } catch (error) {
     console.error(error)

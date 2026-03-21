@@ -108,6 +108,12 @@ const routes = [
         component: () => import('../views/teacher/exams.vue'),
         meta: { title: '考试管理', icon: 'Calendar', role: 0 }
       },
+      {
+        path: '/admin/scores',
+        name: 'AdminScores',
+        component: () => import('../views/teacher/scores.vue'),
+        meta: { title: '成绩统计', icon: 'DataLine', role: 0, hidden: true }
+      },
       // {
       //   path: '/admin/config',
       //   name: 'AdminConfig',

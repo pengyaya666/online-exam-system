@@ -96,10 +96,12 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { useStore } from 'vuex'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getBankPage, createBank, updateBank, deleteBank } from '@/api/bank'
 
 const router = useRouter()
+const store = useStore()
 
 const loading = ref(false)
 const submitLoading = ref(false)
@@ -225,10 +227,18 @@ const handleDelete = async (row) => {
 }
 
 const manageQuestions = (row) => {
-  router.push({
-    path: '/teacher/questions',
-    query: { bankId: row.id, bankName: row.name }
-  })
+  const userRole = store.getters.userRole
+  if (userRole === 0) {
+    router.push({
+      path: '/admin/questions',
+      query: { bankId: row.id, bankName: row.name }
+    })
+  } else {
+    router.push({
+      path: '/teacher/questions',
+      query: { bankId: row.id, bankName: row.name }
+    })
+  }
 }
 
 const handleSizeChange = (val) => {

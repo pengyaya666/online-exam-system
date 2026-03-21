@@ -91,11 +91,29 @@ const routes = [
         meta: { title: '用户管理', icon: 'UserFilled', role: 0 }
       },
       {
-         path: '/admin/banks',
-     name: 'AdminBanks',
-  component: () => import('../views/teacher/banks.vue'),
-  meta: { title: '题库管理', icon: 'Collection', role: 0 }
-},
+        path: '/admin/banks',
+        name: 'AdminBanks',
+        component: () => import('../views/teacher/banks.vue'),
+        meta: { title: '题库管理', icon: 'Collection', role: 0 }
+      },
+      {
+        path: '/admin/questions',
+        name: 'AdminQuestions',
+        component: () => import('../views/teacher/questions.vue'),
+        meta: { title: '题目管理', icon: 'EditPen', role: 0, hidden: true }
+      },
+      {
+        path: '/admin/exams',
+        name: 'AdminExams',
+        component: () => import('../views/teacher/exams.vue'),
+        meta: { title: '考试管理', icon: 'Calendar', role: 0 }
+      },
+      // {
+      //   path: '/admin/config',
+      //   name: 'AdminConfig',
+      //   component: () => import('../views/admin/config.vue'),
+      //   meta: { title: '系统配置', icon: 'Setting', role: 0 }
+      // },
       // 通用路由
       {
         path: '/profile',

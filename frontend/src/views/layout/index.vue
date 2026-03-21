@@ -59,13 +59,17 @@
             <el-icon><UserFilled /></el-icon>
             <template #title>用户管理</template>
           </el-menu-item>
-          <el-menu-item index="/teacher/banks">
+          <el-menu-item index="/admin/banks">
             <el-icon><Collection /></el-icon>
             <template #title>题库管理</template>
           </el-menu-item>
-          <el-menu-item index="/teacher/exams">
+          <el-menu-item index="/admin/exams">
             <el-icon><Calendar /></el-icon>
             <template #title>考试管理</template>
+          </el-menu-item>
+          <el-menu-item index="/admin/config">
+            <el-icon><Setting /></el-icon>
+            <template #title>系统配置</template>
           </el-menu-item>
         </template>
       </el-menu>
@@ -161,6 +165,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useStore } from 'vuex'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { changePassword } from '@/api/user'
+import { HomeFilled, Document, Trophy, Collection, EditPen, Calendar, DataLine, UserFilled, Setting, Fold, Expand, ArrowDown } from '@element-plus/icons-vue'
 
 const route = useRoute()
 const router = useRouter()

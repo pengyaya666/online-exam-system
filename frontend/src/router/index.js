@@ -52,6 +52,12 @@ const routes = [
         component: () => import('../views/student/scores.vue'),
         meta: { title: '我的成绩', icon: 'Trophy', role: 2 }
       },
+      {
+        path: '/student/wrong-questions',
+        name: 'WrongQuestions',
+        component: () => import('../views/student/wrong-questions.vue'),
+        meta: { title: '错题汇总', icon: 'Warning', role: 2 }
+      },
       // 教师端路由
       {
         path: '/teacher/banks',

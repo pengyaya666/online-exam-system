@@ -31,6 +31,10 @@
             <el-icon><Trophy /></el-icon>
             <template #title>我的成绩</template>
           </el-menu-item>
+          <el-menu-item index="/student/wrong-questions">
+            <el-icon><Warning /></el-icon>
+            <template #title>错题汇总</template>
+          </el-menu-item>
         </template>
         
         <!-- 教师菜单 -->
@@ -165,7 +169,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useStore } from 'vuex'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { changePassword } from '@/api/user'
-import { HomeFilled, Document, Trophy, Collection, EditPen, Calendar, DataLine, UserFilled, Setting, Fold, Expand, ArrowDown } from '@element-plus/icons-vue'
+import { HomeFilled, Document, Trophy, Collection, EditPen, Calendar, DataLine, UserFilled, Setting, Fold, Expand, ArrowDown, Warning } from '@element-plus/icons-vue'
 
 const route = useRoute()
 const router = useRouter()

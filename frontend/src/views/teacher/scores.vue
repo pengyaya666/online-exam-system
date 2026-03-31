@@ -90,6 +90,42 @@
         </div>
       </template>
       
+      <!-- 搜索和排序栏 -->
+      <div class="search-bar">
+        <el-form :inline="true" :model="searchForm">
+          <el-form-item>
+            <el-input
+              v-model="searchForm.keyword"
+              placeholder="请输入学生姓名"
+              clearable
+              @keyup.enter="handleSearch"
+            />
+          </el-form-item>
+          <el-form-item>
+            <el-select
+              v-model="searchForm.sortBy"
+              placeholder="排序方式"
+              clearable
+              style="width: 150px"
+              @change="handleSearch"
+            >
+              <el-option label="按分数降序" value="score_desc" />
+              <el-option label="按分数升序" value="score_asc" />
+              <el-option label="按用时升序" value="time_asc" />
+              <el-option label="按用时降序" value="time_desc" />
+              <el-option label="按切屏次数降序" value="switch_desc" />
+              <el-option label="按切屏次数升序" value="switch_asc" />
+            </el-select>
+          </el-form-item>
+          <el-form-item>
+            <el-button type="primary" @click="handleSearch">
+              <el-icon><Search /></el-icon>搜索
+            </el-button>
+            <el-button @click="resetSearch">重置</el-button>
+          </el-form-item>
+        </el-form>
+      </div>
+      
       <el-table :data="records" v-loading="loading" style="width: 100%">
         <el-table-column type="index" label="排名" width="80">
           <template #default="{ $index }">{{ (page - 1) * size + $index + 1 }}</template>
@@ -140,7 +176,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, nextTick } from 'vue'
+import { ref, reactive, onMounted, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { getExamPage, getExamRecords, getScoreStatistics } from '@/api/exam'
@@ -157,6 +193,11 @@ const loading = ref(false)
 const page = ref(1)
 const size = ref(10)
 const total = ref(0)
+
+const searchForm = reactive({
+  keyword: '',
+  sortBy: 'score_desc'
+})
 
 const scoreChart = ref(null)
 const questionChart = ref(null)
@@ -215,7 +256,9 @@ const loadRecords = async () => {
     const res = await getExamRecords({
       page: page.value,
       size: size.value,
-      examId: selectedExamId.value
+      examId: selectedExamId.value,
+      keyword: searchForm.keyword,
+      sortBy: searchForm.sortBy
     })
     records.value = res.records
     total.value = res.total
@@ -229,8 +272,21 @@ const loadRecords = async () => {
 const handleExamChange = async () => {
   currentExam.value = examList.value.find(e => e.id === selectedExamId.value)
   page.value = 1
+  searchForm.keyword = ''
+  searchForm.sortBy = 'score_desc'
   await loadStatistics()
   await loadRecords()
+}
+
+const handleSearch = () => {
+  page.value = 1
+  loadRecords()
+}
+
+const resetSearch = () => {
+  searchForm.keyword = ''
+  searchForm.sortBy = 'score_desc'
+  handleSearch()
 }
 
 const initScoreChart = (data) => {
@@ -319,7 +375,7 @@ const exportScores = () => {
   const csvContent = [
     ['排名', '姓名', '学号/用户名', '开始时间', '用时', '得分', '客观题得分', '是否通过', '切屏次数'],
     ...records.value.map((r, i) => [
-      i + 1,
+      (page.value - 1) * size.value + i + 1,
       r.realName,
       r.studentName,
       formatDateTime(r.startTime),
@@ -388,6 +444,13 @@ onMounted(() => {
 
 .chart-row {
   margin-bottom: 20px;
+}
+
+.search-bar {
+  margin-bottom: 20px;
+  padding: 15px;
+  background-color: #f5f7fa;
+  border-radius: 4px;
 }
 
 .pass {

@@ -41,9 +41,6 @@ public class ExamServiceImpl extends ServiceImpl<ExamMapper, Exam> implements Ex
     @Autowired
     private UserMapper userMapper;
 
-    @Autowired
-    private WrongQuestionMapper wrongQuestionMapper;
-
     @Override
     @Transactional
     public void createExam(ExamDTO examDTO, Long userId) {
@@ -339,33 +336,9 @@ public class ExamServiceImpl extends ServiceImpl<ExamMapper, Exam> implements Ex
                 answer.setIsCorrect(AnswerRecord.CORRECT_YES);
                 answer.setScore(score);
                 objectiveScore += score;
-
-                // 如果之前有错题记录，删除（学生重新做对了）
-                wrongQuestionMapper.deleteByStudentAndQuestion(record.getStudentId(), question.getId());
-
             } else {
                 answer.setIsCorrect(AnswerRecord.CORRECT_NO);
                 answer.setScore(0);
-
-                // 记录错题
-                WrongQuestion wrong = new WrongQuestion();
-                wrong.setStudentId(record.getStudentId());
-                wrong.setExamId(record.getExamId());
-                wrong.setQuestionId(question.getId());
-                wrong.setBankId(question.getBankId());
-                wrong.setQuestionContent(question.getContent());
-                wrong.setQuestionType(question.getType());
-                wrong.setQuestionOptions(question.getOptions());
-                wrong.setCorrectAnswer(question.getAnswer());
-                wrong.setStudentAnswer(answer.getAnswer());
-                wrong.setKnowledgePoint(question.getKnowledgePoint());
-                wrong.setDifficulty(question.getDifficulty());
-                wrong.setAnalysis(question.getAnalysis());
-                wrong.setWrongTime(LocalDateTime.now());
-
-                // 先删除旧的错题记录，再插入新的
-                wrongQuestionMapper.deleteByStudentAndQuestion(record.getStudentId(), question.getId());
-                wrongQuestionMapper.insert(wrong);
             }
 
             answerRecordMapper.updateById(answer);

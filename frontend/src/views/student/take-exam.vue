@@ -158,6 +158,10 @@ const isSubmitting = ref(false)
 const maxSwitchCount = ref(3)
 const reminderTime = ref(5)
 
+// 防止重复加载的标志
+let isLoading = false
+let isRefreshing = false
+
 const answeredCount = computed(() => {
   return questions.value.filter(q => isAnswered(q.id)).length
 })
@@ -204,13 +208,12 @@ const loadExamConfig = async () => {
     if (config.exam_reminder_time) {
       reminderTime.value = parseInt(config.exam_reminder_time)
     }
-    console.log('考试配置加载完成:', { maxSwitchCount: maxSwitchCount.value, reminderTime: reminderTime.value })
   } catch (error) {
     console.error('加载考试配置失败:', error)
   }
 }
 
-// 强制交卷函数
+// 强制交卷函数 - 仅用于切屏次数达到上限时
 const forceSubmitExam = async (reason) => {
   if (isSubmitting.value) return
   isSubmitting.value = true
@@ -234,8 +237,6 @@ const forceSubmitExam = async (reason) => {
     })
     
     try {
-      console.log('强制交卷，切屏次数:', switchCount.value)
-      
       await apiSubmitExam({
         recordId: recordId.value,
         answers: formattedAnswers,
@@ -262,17 +263,18 @@ const forceSubmitExam = async (reason) => {
   }
 }
 
-// 设置页面离开警告
+// 设置页面离开警告 - 刷新时不自动交卷，只提醒
 const setupBeforeUnload = () => {
   window.addEventListener('beforeunload', (e) => {
     if (isSubmitting.value) return
+    // 标记正在刷新
+    isRefreshing = true
     e.preventDefault()
-    e.returnValue = ''
-    forceSubmitExam('您退出了考试页面，系统将自动交卷')
+    e.returnValue = '考试尚未完成，确定要离开吗？您的答题进度已自动保存。'
   })
 }
 
-// 监听历史变化（后退/前进）
+// 监听历史变化（后退/前进）- 后退时强制交卷
 const setupHistoryGuard = () => {
   window.history.pushState(null, null, window.location.href)
   window.addEventListener('popstate', () => {
@@ -292,6 +294,7 @@ const startTimer = () => {
     if (remainingTime.value > 0) {
       remainingTime.value--
       
+      // 每秒保存状态到 localStorage
       localStorage.setItem(`exam_${examId}_remainingTime`, remainingTime.value)
       localStorage.setItem(`exam_${examId}_answers`, JSON.stringify(answers.value))
       
@@ -312,6 +315,12 @@ const startTimer = () => {
 }
 
 const handleVisibilityChange = () => {
+  // 如果是刷新操作，不计入切屏次数
+  if (isRefreshing) {
+    isRefreshing = false
+    return
+  }
+  
   if (document.hidden && !isSubmitting.value) {
     switchCount.value++
     switchDialogVisible.value = true
@@ -359,8 +368,6 @@ const submitExam = async () => {
   })
   
   try {
-    console.log('提交切屏次数:', switchCount.value)
-    
     await apiSubmitExam({
       recordId: recordId.value,
       answers: formattedAnswers,
@@ -386,6 +393,10 @@ const submitExam = async () => {
 }
 
 const loadExam = async () => {
+  // 防止重复加载
+  if (isLoading) return
+  isLoading = true
+  
   try {
     // 先加载配置
     await loadExamConfig()
@@ -397,6 +408,7 @@ const loadExam = async () => {
     examInfo.value = res
     questions.value = res.questions || []
     
+    // 初始化答案对象
     questions.value.forEach(q => {
       if (q.type === 2) {
         answers.value[q.id] = []
@@ -405,6 +417,7 @@ const loadExam = async () => {
       }
     })
     
+    // 从 localStorage 恢复状态
     const savedRecordId = localStorage.getItem(`exam_${examId}_recordId`)
     const savedTime = localStorage.getItem(`exam_${examId}_remainingTime`)
     const savedAnswers = localStorage.getItem(`exam_${examId}_answers`)
@@ -417,7 +430,8 @@ const loadExam = async () => {
       savedSwitchCount
     })
     
-    if (savedRecordId && savedTime) {
+    if (savedRecordId && savedTime && parseInt(savedTime) > 0) {
+      // 恢复之前的考试状态
       console.log('找到保存的状态，恢复中...')
       recordId.value = parseInt(savedRecordId)
       remainingTime.value = parseInt(savedTime)
@@ -436,17 +450,20 @@ const loadExam = async () => {
         }
       }
       
+      // 检查是否需要强制交卷
       if (switchCount.value >= maxSwitchCount.value) {
         forceSubmitExam(`您之前已切屏${maxSwitchCount.value}次，系统将自动交卷`)
         return
       }
     } else {
+      // 没有保存的状态，开始新考试
       console.log('没有保存的状态，开始新考试')
       const startRes = await startExam(examId)
       recordId.value = startRes.id
       remainingTime.value = examInfo.value.duration * 60
       switchCount.value = 0
       
+      // 保存初始状态到 localStorage
       localStorage.setItem(`exam_${examId}_recordId`, recordId.value)
       localStorage.setItem(`exam_${examId}_remainingTime`, remainingTime.value)
       localStorage.setItem(`exam_${examId}_answers`, JSON.stringify(answers.value))
@@ -455,14 +472,18 @@ const loadExam = async () => {
       console.log('新考试状态已保存')
     }
     
+    // 设置页面保护
     setupBeforeUnload()
     setupHistoryGuard()
     
+    // 启动计时器
     startTimer()
   } catch (error) {
     console.error('加载考试失败:', error)
     ElMessage.error('加载考试失败')
     router.push('/student/exams')
+  } finally {
+    isLoading = false
   }
 }
 
